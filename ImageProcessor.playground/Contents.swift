@@ -9,6 +9,9 @@ let image = UIImage(named: "sample")!
 let i = RGBAImage(image: image)!
 
 let imageProcessor = ImageProcessor()
-let filter = ClearColorFilter()
+let filter1 = ClearChannelFilter(channel: Channel.BLUE)
+let filter2 = SharpenFilter(middleColor: 126)
 
-let newImage = imageProcessor.apply(image, filters:filter)
+print(UINT8_MAX)
+
+let newImage = imageProcessor.apply(image, filters:filter2)
