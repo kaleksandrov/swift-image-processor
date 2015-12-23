@@ -1,9 +1,31 @@
 import Foundation
 import UIKit
 
-public protocol Filter {
-    func apply(inout pixel:Pixel)
+public extension RGBAImage {
+    
+    private func calculateIndexFor(x:Int, y:Int) -> Int {
+        return x * self.width + y
+    }
+    
+    public func process(callback:(inout Pixel) -> ()) {
+        for x in 0..<self.width {
+            for y in 0..<self.height {
+                let index = calculateIndexFor(x, y:y)
+                var pixel = self.pixels[index]
+                
+                callback(&pixel)
+                
+                self.pixels[index] = pixel
+            }
+        }
+    }
 }
+
+
+public protocol Filter {
+    func apply(image:RGBAImage)
+}
+
 
 public class ImageProcessor {
 
@@ -16,18 +38,8 @@ public class ImageProcessor {
         let rgbaImage = RGBAImage(image:image)!
         
         // 2. Apply the change to each pixel.
-        for x in 0..<rgbaImage.width {
-            for y in 0..<rgbaImage.height {
-                let index = x*rgbaImage.width + y
-                var pixel = rgbaImage.pixels[index]
-                
-                
-                for filter in filters {
-                    filter.apply(&pixel)
-                }
-                
-                rgbaImage.pixels[index] = pixel
-            }
+        for filter in filters {
+            filter.apply(rgbaImage)
         }
         
         // 3. Convert back to UIImage.
@@ -51,47 +63,138 @@ public class ClearChannelFilter:Filter {
         self.channel = channel
     }
     
-    public func apply(inout pixel:Pixel) {
-        switch channel {
-        case .ALFA:
-            pixel.alpha = 0
-        case .RED:
-            pixel.red = 0
-        case .GREEN:
-            pixel.green = 0
-        case .BLUE:
-            pixel.blue = 0
-        }
+    public func apply(image:RGBAImage) {
+        image.process({
+            (inout pixel:Pixel) -> () in
+            switch self.channel {
+            case .ALFA:
+                pixel.alpha = 0
+            case .RED:
+                pixel.red = 0
+            case .GREEN:
+                pixel.green = 0
+            case .BLUE:
+                pixel.blue = 0
+            }
+        })
     }
 }
 
+public class GreyScaleFilter:Filter {
+    
+    public init() {
+        
+    }
+    
+    public func apply(image:RGBAImage) {
+        image.process({
+            (inout pixel:Pixel) -> () in
+            let red = Int(pixel.red)
+            let green = Int(pixel.green)
+            let blue = Int(pixel.blue)
+            
+            let grey = (red + green + blue)/3
+            
+            pixel.red = UInt8(grey)
+            pixel.green = UInt8(grey)
+            pixel.blue = UInt8(grey)
+        })
+    }
+}
+
+
+
+public class SepiaFilter:Filter {
+    
+    var depth:UInt8
+    
+    public init(depth:UInt8) {
+        self.depth = depth
+    }
+    
+    public func apply(image:RGBAImage) {
+        image.process({
+            (inout pixel:Pixel) -> () in
+            var red = Int(pixel.red)
+            var green = Int(pixel.green)
+            var blue = Int(pixel.blue)
+            
+            let grey = (red + green + blue)/3
+            
+            red = grey + Int(self.depth) * 2
+            green = grey + Int(self.depth)
+            blue = grey - Int(self.depth)
+            
+            pixel.red = UInt8(self.norm(red))
+            pixel.green = UInt8(self.norm(green))
+            pixel.blue = UInt8(self.norm(blue))
+        })
+    }
+    
+    private func norm(color:Int) -> UInt8 {
+        return UInt8(max(min(color, 255), 0))
+    }
+}
+
+public class InvertFilter:Filter {
+    
+    public init() {
+        
+    }
+    
+    public func apply(image:RGBAImage) {
+        image.process({
+            (inout pixel:Pixel) -> () in
+            let red = Int(pixel.red)
+            let green = Int(pixel.green)
+            let blue = Int(pixel.blue)
+            
+            pixel.red = UInt8(255 - red)
+            pixel.green = UInt8(255 - green)
+            pixel.blue = UInt8(255 - blue)
+        })
+    }
+}
+
+
 public class SharpenFilter:Filter {
     
-    var middleColor:UInt8
+    var value:UInt8
     
-    public init(middleColor:UInt8) {
-        self.middleColor = middleColor
+    public init(value:UInt8) {
+        self.value = value
     }
     
-    public func apply(inout pixel:Pixel) {
-//        pixel.red /= 2
-//        pixel.green /= 2
-//        pixel.blue /= 2
+    public func apply(image:RGBAImage) {
+        var allRed = 0;
         
-        let diff:Int = Int(pixel.red) - Int(self.middleColor)
-        print("-----")
-        print(pixel.red)
-        print(diff)
-//        print(Int(pixel.red) + Int(diff))
-//        print(min(Int(pixel.red) + Int(diff), 255))
-//        print(          UInt8(min(Int(pixel.red) + Int(diff), 255))        )
-        if(diff > 0) {
-            print("1")
-            pixel.red = UInt8(min(Int(pixel.red) + Int(diff), 255))
-            print(pixel.red)
+        image.process({
+            (inout pixel:Pixel) -> () in
+            allRed += Int(pixel.red)
+        })
+        
+        let count = image.pixels.count
+        
+        let avgRed = UInt8(allRed/count)
+        
+        image.process({
+            (inout pixel:Pixel) -> () in
+            pixel.red = self.calculateColor(pixel.red, treshold: avgRed)
+        })
+    }
+    
+    private func calculateColor(color:UInt8, treshold:UInt8) -> UInt8 {
+        let iColor = Int(color)
+        let iTreshold = Int(treshold)
+        let diff = iColor - iTreshold
+        
+        if diff > 0 {
+            return UInt8(min(iColor + Int(self.value), Int(UINT8_MAX)))
+        } else if diff < 0 {
+            return UInt8(max(iColor - Int(self.value), 0))
         } else {
-            print("2")
-            pixel.red = UInt8(max(Int(pixel.red) - Int(diff), 0))
+            return color
         }
     }
+    
 }
