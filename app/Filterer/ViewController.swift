@@ -10,19 +10,120 @@ import UIKit
 
 class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
 
+    let imageProcesor: ImageProcessor = ImageProcessor()
+    
     var filteredImage: UIImage?
+    var originalImage: UIImage?
+
+    var filterSharpen80:Bool = false
+    var filterSepia50:Bool = false
+    var filterGreyScale50:Bool = false
+    var filterInvert50:Bool = false
     
-    @IBOutlet var imageView: UIImageView!
+    @IBOutlet weak var imageView: UIImageView!
+    @IBOutlet weak var secondaryMenu: UIView!
+    @IBOutlet weak var bottomMenu: UIView!
+    @IBOutlet weak var filterButton: UIButton!
+    @IBOutlet weak var compareButton: UIButton!
+    @IBOutlet weak var filtersContainer: UIStackView!
     
-    @IBOutlet var secondaryMenu: UIView!
-    @IBOutlet var bottomMenu: UIView!
+    @IBAction func onOverlayDown() {
+        imageView.image = originalImage
+    }
     
-    @IBOutlet var filterButton: UIButton!
+    @IBAction func onOverlayUpIn() {
+        imageView.image = filteredImage
+    }
+    
+    
+    @IBAction func onOverlayUpOut() {
+        imageView.image = filteredImage
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
         secondaryMenu.backgroundColor = UIColor.whiteColor().colorWithAlphaComponent(0.5)
         secondaryMenu.translatesAutoresizingMaskIntoConstraints = false
+        
+        compareButton.enabled = false
+        
+        originalImage = imageView.image
+        filteredImage = imageView.image
+        
+        // Programatically add a filter button
+        let invert:UIButton = UIButton(type: .System)
+        invert.setTitle("Invert", forState: .Normal)
+        invert.contentMode = UIViewContentMode.ScaleAspectFit
+        invert.addTarget(self, action: "onInvert:", forControlEvents:.TouchUpInside)
+        filtersContainer.addArrangedSubview(invert)
+    }
+    
+    @IBAction func onCompare(sender: UIButton) {
+        sender.selected = !sender.selected
+        if sender.selected {
+            imageView.image = originalImage
+        } else {
+            imageView.image = filteredImage
+        }
+        enableFilterButtons(!sender.selected)
+    }
+    
+    func enableFilterButtons(isEnabled:Bool) {
+        for var filterButton:UIView in filtersContainer.subviews {
+            if filterButton is UIButton {
+                (filterButton as! UIButton).enabled = isEnabled
+            }
+        }
+    }
+    
+    @IBAction func onSharpen(sender: UIButton) {
+        sender.selected = !sender.selected
+        filterSharpen80 = sender.selected
+        updateImage()
+    }
+    
+    @IBAction func onSepia(sender: UIButton) {
+        sender.selected = !sender.selected
+        filterSepia50 = sender.selected
+        updateImage()
+    }
+    
+    @IBAction func onGreyScale(sender: UIButton) {
+        sender.selected = !sender.selected
+        filterGreyScale50 = sender.selected
+        updateImage()
+    }
+    
+    @IBAction func onInvert(sender: UIButton) {
+        sender.selected = !sender.selected
+        filterInvert50 = sender.selected
+        updateImage()
+    }
+    
+    func updateImage() {
+        var filters = [Filter]()
+        if (filterSharpen80) {
+            filters.append(Filters.SHARPEN_80)
+        }
+        if(filterSepia50){
+            filters.append(Filters.SEPIA_50)
+        }
+        if(filterGreyScale50){
+            filters.append(Filters.GREY_SCALE_50)
+        }
+        if(filterInvert50){
+            filters.append(Filters.INVERT_50)
+        }
+        
+        if filters.count == 0 {
+            compareButton.enabled = false
+        } else {
+            compareButton.enabled = true
+        }
+        
+        filteredImage  = imageProcesor.apply(originalImage!, filters: filters)
+        imageView.image = filteredImage
     }
 
     // MARK: Share
@@ -105,7 +206,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
             self.secondaryMenu.alpha = 1.0
         }
     }
-
+    
     func hideSecondaryMenu() {
         UIView.animateWithDuration(0.4, animations: {
             self.secondaryMenu.alpha = 0
